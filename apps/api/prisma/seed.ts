@@ -163,6 +163,20 @@ async function main() {
     venues: [planetball.name, arenaMoinhos.name, quadraBotanico.name],
     users: [partner.email, player.email],
   });
+
+  // Default weekly availability Mon–Sun 08:00–22:00 for all courts (map freeAt filters)
+  const allCourts = await prisma.court.findMany();
+  for (const court of allCourts) {
+    await prisma.courtAvailability.createMany({
+      data: [0, 1, 2, 3, 4, 5, 6].map((weekday) => ({
+        courtId: court.id,
+        weekday,
+        startMinute: 8 * 60,
+        endMinute: 22 * 60,
+      })),
+    });
+  }
+  console.log('Weekly availability seeded for', allCourts.length, 'courts');
 }
 
 main()

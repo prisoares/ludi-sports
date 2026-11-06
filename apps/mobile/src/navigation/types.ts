@@ -8,6 +8,8 @@ export type RootStackParamList = {
   MainTabs: undefined;
   VenueDetail: { slug: string };
   PartnerInbox: undefined;
+  PartnerVenues: undefined;
+  PartnerVenueDetail: { venueId: string };
 };
 
 export type MainTabParamList = {

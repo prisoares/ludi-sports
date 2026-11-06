@@ -10,6 +10,10 @@ import {
 import { LoginScreen } from './src/screens/LoginScreen';
 import { VenueDetailScreen } from './src/screens/VenueDetailScreen';
 import { PartnerInboxScreen } from './src/screens/PartnerInboxScreen';
+import {
+  PartnerVenuesScreen,
+  PartnerVenueDetailScreen,
+} from './src/screens/PartnerVenuesScreen';
 import { MainTabs } from './src/navigation/MainTabs';
 import type { RootStackParamList } from './src/navigation/types';
 import { StatusBar } from 'expo-status-bar';
@@ -48,6 +52,11 @@ function RootNavigator() {
       <Stack.Screen name="MainTabs" component={MainTabs} />
       <Stack.Screen name="VenueDetail" component={VenueDetailScreen} />
       <Stack.Screen name="PartnerInbox" component={PartnerInboxScreen} />
+      <Stack.Screen name="PartnerVenues" component={PartnerVenuesScreen} />
+      <Stack.Screen
+        name="PartnerVenueDetail"
+        component={PartnerVenueDetailScreen}
+      />
     </Stack.Navigator>
   );
 }

@@ -7,6 +7,7 @@ export class ApiError extends Error {
     message: string,
   ) {
     super(message);
+    this.name = 'ApiError';
   }
 }
 
@@ -45,6 +46,16 @@ async function request<T>(
   return body as T;
 }
 
+function qs(params: Record<string, string | number | undefined | null>) {
+  const sp = new URLSearchParams();
+  for (const [k, v] of Object.entries(params)) {
+    if (v === undefined || v === null || v === '') continue;
+    sp.set(k, String(v));
+  }
+  const s = sp.toString();
+  return s ? `?${s}` : '';
+}
+
 export type AuthUser = {
   id: string;
   email: string;
@@ -64,6 +75,14 @@ export type Sport = {
   iconKey: string;
 };
 
+export type VenueFilters = {
+  sport?: string;
+  freeAt?: string;
+  lat?: number;
+  lng?: number;
+  radiusKm?: number;
+};
+
 export type Venue = {
   id: string;
   slug: string;
@@ -78,6 +97,8 @@ export type Venue = {
   photoUrls: string[];
   minPriceCents: number;
   sports: string[];
+  distanceKm?: number;
+  mapVisible?: boolean;
   courts: {
     id: string;
     name: string;
@@ -85,6 +106,18 @@ export type Venue = {
     sportName: string;
     priceCents: number;
   }[];
+};
+
+export type MapPin = {
+  id: string;
+  slug: string;
+  name: string;
+  lat: number;
+  lng: number;
+  neighborhood: string;
+  minPriceCents: number;
+  sports: string[];
+  distanceKm?: number;
 };
 
 export type Booking = {
@@ -107,6 +140,47 @@ export type Booking = {
   user?: { id: string; name: string };
 };
 
+export type PartnerVenue = {
+  id: string;
+  slug: string;
+  name: string;
+  description?: string | null;
+  address: string;
+  neighborhood: string;
+  city: string;
+  lat: number;
+  lng: number;
+  photoUrls: string[];
+  active: boolean;
+  mapVisible: boolean;
+  courts: {
+    id: string;
+    name: string;
+    sportSlug: string;
+    sportName: string;
+    priceCents: number;
+    active: boolean;
+    weeklyAvailability: { dayOfWeek: number; startMin: number; endMin: number }[];
+    blocks: {
+      id: string;
+      startsAt: string;
+      endsAt: string;
+      reason: string | null;
+    }[];
+  }[];
+  mapFees: {
+    id: string;
+    year: number;
+    month: number;
+    gmvCents: number;
+    feeCents: number;
+    status: string;
+    dueAt: string;
+    paidAt: string | null;
+    pixCopyPaste: string | null;
+  }[];
+};
+
 export const api = {
   register: (body: {
     name: string;
@@ -127,8 +201,7 @@ export const api = {
       body: JSON.stringify({ cpf, password }),
     }),
 
-  me: (token: string) =>
-    request<AuthUser>('/auth/me', { token }),
+  me: (token: string) => request<AuthUser>('/auth/me', { token }),
 
   switchRole: (token: string, role: 'USER' | 'PARTNER') =>
     request<AuthResponse>('/auth/switch-role', {
@@ -139,8 +212,14 @@ export const api = {
 
   sports: () => request<Sport[]>('/sports'),
 
-  venues: (sport?: string) =>
-    request<Venue[]>(`/venues${sport ? `?sport=${encodeURIComponent(sport)}` : ''}`),
+  venues: (filters: VenueFilters | string = {}) => {
+    const f: VenueFilters =
+      typeof filters === 'string' ? { sport: filters } : filters;
+    return request<Venue[]>(`/venues${qs(f)}`);
+  },
+
+  mapPins: (filters: VenueFilters = {}) =>
+    request<MapPin[]>(`/venues/map/pins${qs(filters)}`),
 
   venue: (slug: string) => request<Venue>(`/venues/${slug}`),
 
@@ -176,6 +255,112 @@ export const api = {
 
   payStub: (token: string, id: string) =>
     request<Booking>(`/bookings/${id}/pay-stub`, { method: 'POST', token }),
+
+  partnerVenues: (token: string) =>
+    request<PartnerVenue[]>('/partner/venues', { token }),
+
+  partnerVenue: (token: string, id: string) =>
+    request<PartnerVenue>(`/partner/venues/${id}`, { token }),
+
+  createVenue: (
+    token: string,
+    body: {
+      name: string;
+      description?: string;
+      address: string;
+      neighborhood: string;
+      lat: number;
+      lng: number;
+      photoUrls?: string[];
+    },
+  ) =>
+    request<PartnerVenue>('/partner/venues', {
+      method: 'POST',
+      token,
+      body: JSON.stringify(body),
+    }),
+
+  updateVenue: (
+    token: string,
+    id: string,
+    body: Partial<{
+      name: string;
+      description: string;
+      address: string;
+      neighborhood: string;
+      lat: number;
+      lng: number;
+      photoUrls: string[];
+    }>,
+  ) =>
+    request<PartnerVenue>(`/partner/venues/${id}`, {
+      method: 'PATCH',
+      token,
+      body: JSON.stringify(body),
+    }),
+
+  addVenuePhoto: (token: string, id: string, url: string) =>
+    request<PartnerVenue>(`/partner/venues/${id}/photos`, {
+      method: 'POST',
+      token,
+      body: JSON.stringify({ url }),
+    }),
+
+  createCourt: (
+    token: string,
+    venueId: string,
+    body: { name: string; sportSlug: string; priceCents: number },
+  ) =>
+    request(`/partner/venues/${venueId}/courts`, {
+      method: 'POST',
+      token,
+      body: JSON.stringify(body),
+    }),
+
+  updateCourt: (
+    token: string,
+    courtId: string,
+    body: { name?: string; priceCents?: number; active?: boolean },
+  ) =>
+    request(`/partner/courts/${courtId}`, {
+      method: 'PATCH',
+      token,
+      body: JSON.stringify(body),
+    }),
+
+  setAvailability: (
+    token: string,
+    courtId: string,
+    slots: { dayOfWeek: number; startMin: number; endMin: number }[],
+  ) =>
+    request(`/partner/courts/${courtId}/availability`, {
+      method: 'PUT',
+      token,
+      body: JSON.stringify({ slots }),
+    }),
+
+  createBlock: (
+    token: string,
+    courtId: string,
+    body: { startsAt: string; endsAt: string; reason?: string },
+  ) =>
+    request(`/partner/courts/${courtId}/blocks`, {
+      method: 'POST',
+      token,
+      body: JSON.stringify(body),
+    }),
+
+  payMapFeeStub: (token: string, invoiceId: string) =>
+    request(`/partner/map-fees/${invoiceId}/pay-stub`, {
+      method: 'POST',
+      token,
+    }),
+
+  runMapFeeJob: (token: string) =>
+    request<{ year: number; month: number; created: number }>(
+      '/billing/map-fees/run',
+      { method: 'POST', token },
+    ),
 };
 
 export { API_URL };

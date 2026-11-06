@@ -35,6 +35,20 @@ enum PaymentMethod {
   PIX
 }
 
+enum MapFeeStatus {
+  pending
+  paid
+  overdue
+  stub
+}
+
+enum MonthlyInvoiceStatus {
+  draft
+  pending
+  paid
+  cancelled
+}
+
 model User {
   id           String   @id @default(cuid())
   email        String   @unique
@@ -79,17 +93,21 @@ model Venue {
   lng          Float
   photoUrls    String[]
   active       Boolean  @default(true)
+  /// Visible on public map; set false when map-fee unpaid past due.
+  mapVisible   Boolean  @default(true)
   ownerId      String?
   owner        User?    @relation("VenueOwner", fields: [ownerId], references: [id])
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
-  courts   Court[]
-  bookings Booking[]
-  monthlyInvoices VenueMonthlyInvoice[]
+  courts            Court[]
+  bookings          Booking[]
+  monthlyInvoices   VenueMonthlyInvoice[]
+  mapFeeInvoices    MapFeeInvoice[]
 
   @@index([city, state])
   @@index([lat, lng])
+  @@index([mapVisible, active])
 }
 
 model Court {
@@ -104,12 +122,78 @@ model Court {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  bookings Booking[]
+  bookings       Booking[]
   availabilities CourtAvailability[]
-  blocks CourtBlock[]
+  blocks         CourtBlock[]
 
   @@index([venueId])
   @@index([sportId])
+}
+
+model CourtAvailability {
+  id          String   @id @default(cuid())
+  courtId     String
+  court       Court    @relation(fields: [courtId], references: [id], onDelete: Cascade)
+  /// 0=Domingo .. 6=Sábado
+  weekday     Int
+  startMinute Int
+  endMinute   Int
+  priceCents  Int?
+  createdAt   DateTime @default(now())
+
+  @@index([courtId, weekday])
+}
+
+model CourtBlock {
+  id        String   @id @default(cuid())
+  courtId   String
+  court     Court    @relation(fields: [courtId], references: [id], onDelete: Cascade)
+  startsAt  DateTime
+  endsAt    DateTime
+  reason    String?
+  createdAt DateTime @default(now())
+
+  @@index([courtId, startsAt])
+}
+
+/// Monthly 1% GMV map listing fee (prior-month paid bookings) — Phase 1b cron/enforce.
+model MapFeeInvoice {
+  id            String       @id @default(cuid())
+  venueId       String
+  venue         Venue        @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  year          Int
+  month         Int
+  gmvCents      Int
+  feeCents      Int
+  status        MapFeeStatus @default(pending)
+  dueAt         DateTime
+  paidAt        DateTime?
+  asaasChargeId String?
+  pixCopyPaste  String?
+  createdAt     DateTime     @default(now())
+  updatedAt     DateTime     @updatedAt
+
+  @@unique([venueId, year, month])
+  @@index([status, dueAt])
+}
+
+/// Taxa mensal 1% do GMV — partner-web / BillingService on main.
+model VenueMonthlyInvoice {
+  id              String               @id @default(cuid())
+  venueId         String
+  venue           Venue                @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  yearMonth       String
+  gmvCents        Int
+  feeCents        Int
+  status          MonthlyInvoiceStatus @default(draft)
+  asaasChargeId   String?
+  pixCopyPaste    String?
+  paidAt          DateTime?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  @@unique([venueId, yearMonth])
+  @@index([status])
 }
 
 model Booking {
@@ -162,59 +246,6 @@ model Payment {
   updatedAt       DateTime      @updatedAt
 
   @@index([asaasChargeId])
-}
-
-
-model CourtAvailability {
-  id          String   @id @default(cuid())
-  courtId     String
-  court       Court    @relation(fields: [courtId], references: [id], onDelete: Cascade)
-  /// 0=Domingo .. 6=Sábado
-  weekday     Int
-  startMinute Int
-  endMinute   Int
-  priceCents  Int?
-  createdAt   DateTime @default(now())
-
-  @@index([courtId, weekday])
-}
-
-model CourtBlock {
-  id        String   @id @default(cuid())
-  courtId   String
-  court     Court    @relation(fields: [courtId], references: [id], onDelete: Cascade)
-  startsAt  DateTime
-  endsAt    DateTime
-  reason    String?
-  createdAt DateTime @default(now())
-
-  @@index([courtId, startsAt])
-}
-
-enum MonthlyInvoiceStatus {
-  draft
-  pending
-  paid
-  cancelled
-}
-
-/// Taxa mensal 1% do GMV de reservas pagas do local no mês
-model VenueMonthlyInvoice {
-  id              String               @id @default(cuid())
-  venueId         String
-  venue           Venue                @relation(fields: [venueId], references: [id], onDelete: Cascade)
-  yearMonth       String
-  gmvCents        Int
-  feeCents        Int
-  status          MonthlyInvoiceStatus @default(draft)
-  asaasChargeId   String?
-  pixCopyPaste    String?
-  paidAt          DateTime?
-  createdAt       DateTime             @default(now())
-  updatedAt       DateTime             @updatedAt
-
-  @@unique([venueId, yearMonth])
-  @@index([status])
 }
 
 model DevicePushToken {
