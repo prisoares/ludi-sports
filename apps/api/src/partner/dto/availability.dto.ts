@@ -10,20 +10,43 @@ import {
 } from 'class-validator';
 
 export class AvailabilitySlotDto {
+  /** Partner-web field. */
+  @IsOptional()
   @IsInt()
   @Min(0)
   @Max(6)
-  weekday!: number;
+  weekday?: number;
 
+  /** Phase 1b mobile alias for weekday. */
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(6)
+  dayOfWeek?: number;
+
+  @IsOptional()
   @IsInt()
   @Min(0)
   @Max(24 * 60)
-  startMinute!: number;
+  startMinute?: number;
 
+  @IsOptional()
   @IsInt()
   @Min(0)
   @Max(24 * 60)
-  endMinute!: number;
+  startMin?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(24 * 60)
+  endMinute?: number;
+
+  @IsOptional()
+  @IsInt()
+  @Min(0)
+  @Max(24 * 60)
+  endMin?: number;
 
   @IsOptional()
   @IsInt()

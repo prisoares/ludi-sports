@@ -120,7 +120,7 @@ npm run dev -w @ludi/mobile
 npm run dev -w @ludi/partner-web   # http://localhost:3001
 ```
 
-Telas Fase 1: login/cadastro CPF → JWT, esportes da API, detalhe do venue → solicitar reserva, histórico com status + pagar Pix (stub), mapa com lat/lng, perfil com troca de papel, inbox parceiro aceitar/recusar.
+Telas Fase 1b: login/cadastro CPF → JWT, **Início** (próximas + pagamento pendente + atalhos), esportes com filtros (horário livre / distância), detalhe → reserva, histórico + Pix stub, **mapa com pins** (`react-native-maps` + cache AsyncStorage), perfil com troca de papel, inbox parceiro, **CRUD de locais** no app; partner-web permanece no painel Next.js.
 
 Defina `EXPO_PUBLIC_API_URL` (default `http://localhost:3000`; no device use o IP da máquina).
 
@@ -135,3 +135,49 @@ Ver [`.env.example`](.env.example). Integrações Asaas / 360dialog / Google Map
 ## Próximas fatias (ainda Fase 1 / 2)
 
 - Chat in-app, WhatsApp live, partner CRUD de quadras/agenda, Google Maps nativo, taxa mensal 1% GMV cobrada
+
+## Happy path — mapa, filtros, CRUD parceiro, taxa 1% GMV
+
+```bash
+API=http://localhost:3000
+
+PARTNER=$(curl -s -X POST $API/auth/login -H 'Content-Type: application/json' \
+  -d '{"cpf":"52998224725","password":"ludi123"}')
+KT=$(echo "$PARTNER" | node -pe 'JSON.parse(fs.readFileSync(0,"utf8")).accessToken')
+
+# Pins do mapa (cacheados no app via AsyncStorage)
+curl -s "$API/venues/map/pins?lat=-30.03&lng=-51.22&radiusKm=10" | head -c 400; echo
+
+# Filtros: esporte + horário livre + distância
+FREE=$(node -pe 'const d=new Date();d.setDate(d.getDate()+1);d.setHours(19,0,0,0);d.toISOString()')
+curl -s "$API/venues?sport=futebol-society&freeAt=$FREE&lat=-30.03&lng=-51.22&radiusKm=15" | head -c 400; echo
+
+# CRUD parceiro — criar local + quadra
+VENUE=$(curl -s -X POST $API/partner/venues -H "Authorization: Bearer $KT" \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"Arena Teste","address":"Rua X, 1","neighborhood":"Centro","lat":-30.03,"lng":-51.22,"photoUrls":["https://example.com/a.jpg"]}')
+VID=$(echo "$VENUE" | node -pe 'JSON.parse(fs.readFileSync(0,"utf8")).id')
+curl -s -X POST $API/partner/venues/$VID/courts -H "Authorization: Bearer $KT" \
+  -H 'Content-Type: application/json' \
+  -d '{"name":"Fut 5","sportSlug":"futebol-society","priceCents":15000}'
+
+# Job taxa mensal 1% GMV (mês anterior) + enforce overdue
+curl -s -X POST $API/billing/map-fees/run -H "Authorization: Bearer $KT"
+curl -s -X POST $API/billing/map-fees/enforce-overdue -H "Authorization: Bearer $KT"
+# Pagar fatura stub: POST /partner/map-fees/:id/pay-stub
+```
+
+Notificações (e-mail + WhatsApp 360dialog) em stub nos eventos: parceiro aceitou, pagamento pendente, confirmada, cancelada — veja logs `[email:stub]` / `[whatsapp:stub]`.
+
+## Variáveis de ambiente
+
+Ver [`.env.example`](.env.example). Integrações Asaas / 360dialog / e-mail / Google Maps / bureau CPF ficam em **stub** quando as keys estão vazias. Locks de slot: Redis se `REDIS_URL` conecta; senão Postgres `pg_advisory_lock`.
+
+## Docs de produto
+
+- [Product brief (Figma)](docs/figma-product-brief.md)
+
+## Próximas fatias (ainda Fase 1 / 2)
+
+- Chat in-app, WhatsApp/e-mail live keys, Google Maps API key nativa, conciliação financeira
+

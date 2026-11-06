@@ -51,12 +51,20 @@ export function ProfileScreen() {
       </Pressable>
 
       {user.activeRole === 'PARTNER' || user.roles.includes('PARTNER') ? (
-        <Pressable
-          style={styles.secondary}
-          onPress={() => navigation.navigate('PartnerInbox')}
-        >
-          <Text style={styles.secondaryText}>Inbox de solicitações</Text>
-        </Pressable>
+        <>
+          <Pressable
+            style={styles.secondary}
+            onPress={() => navigation.navigate('PartnerInbox')}
+          >
+            <Text style={styles.secondaryText}>Inbox de solicitações</Text>
+          </Pressable>
+          <Pressable
+            style={styles.secondary}
+            onPress={() => navigation.navigate('PartnerVenues')}
+          >
+            <Text style={styles.secondaryText}>Meus locais / CRUD</Text>
+          </Pressable>
+        </>
       ) : null}
 
       <Pressable
